@@ -1,0 +1,5 @@
+machine learning is a subset of artificial intelligence
+deep learning models can learn complex patterns from data
+natural language processing enables computers to understand human language
+neural networks are inspired by biological neural networks
+artificial intelligence aims to create intelligent machines
