@@ -5,21 +5,20 @@
 
 using namespace std;
 using namespace Eigen;
-using Matrix = MatrixXf;
 
 // Matrix utility functions
-Matrix createMatrix(int rows, int cols) {
-    Matrix mat = Matrix::Random(rows, cols) * 0.1f;
+MatrixXf createMatrix(int rows, int cols) {
+    MatrixXf mat = MatrixXf::Random(rows, cols) * 0.1f;
     return mat;
 }
 
-void applyReLU(Matrix& mat) {
+void applyReLU(MatrixXf& mat) {
     mat = mat.cwiseMax(0.0f);
 }
 
 class OptimizedConvolutionalLayer { 
 private: 
-    Matrix filters;  // Store filters as a matrix 
+    MatrixXf filters;  // Store filters as a matrix 
     int inputChannels;  // Number of input channels 
     int outputChannels; // Number of output channels 
     int kernelSize;
@@ -35,12 +34,12 @@ public:
         filters = createMatrix(outChannels, inChannels * kernelSize * kernelSize); 
     } 
  
-    Matrix forward(const Matrix& input) { 
+    MatrixXf forward(const MatrixXf& input) { 
         // Convert input to matrix format for efficient computation 
-        Matrix inputMatrix = im2col(input, kernelSize, stride); 
+        MatrixXf inputMatrix = im2col(input, kernelSize, stride); 
  
         // Perform matrix multiplication instead of explicit convolution 
-        Matrix output = filters * inputMatrix; 
+        MatrixXf output = filters * inputMatrix; 
  
         // Apply ReLU activation
         applyReLU(output);
@@ -49,12 +48,12 @@ public:
     }
 
 private:
-    Matrix im2col(const Matrix& input, int kSize, int stride) {
+    MatrixXf im2col(const MatrixXf& input, int kSize, int stride) {
         int inputRows = input.rows();
         int inputCols = input.cols();
         int outputRows = (inputRows - kSize) / stride + 1;
         int outputCols = (inputCols - kSize) / stride + 1;
-        Matrix result(kSize * kSize, outputRows * outputCols);
+        MatrixXf result(kSize * kSize, outputRows * outputCols);
         
         int colIdx = 0;
         for(int i = 0; i <= inputRows - kSize; i += stride) {
@@ -75,16 +74,16 @@ private:
 };
 
 int main() {
-    OptimizedConvolutionalLayer conv(3, 64, 3, 1);
+    OptimizedConvolutionalLayer conv(1, 64, 3, 1);
     
-    Matrix input(8, 8);
+    MatrixXf input(8, 8);
     for(int i = 0; i < 8; i++) {
         for(int j = 0; j < 8; j++) {
             input(i, j) = i * 8 + j + 1;
         }
     }
     
-    Matrix output = conv.forward(input);
+    MatrixXf output = conv.forward(input);
     
     cout << "Input: " << input.rows() << "x" << input.cols() << endl;
     cout << "Output: " << output.rows() << "x" << output.cols() << endl;

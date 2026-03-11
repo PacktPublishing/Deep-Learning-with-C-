@@ -2,6 +2,7 @@
 #include <random>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 using namespace std;
 
@@ -27,13 +28,14 @@ public:
         for(auto& filter : filters) {
             // Slide filter across input
             vector<float> featureMap;
-            for(int i = 0; i < input.size() - filter.size() + 1; i += stride) {
-                for(int j = 0; j < input.size() - filter.size() + 1; j += stride) {
+            int filterSize = (int)sqrt(filter.size());
+            for(int i = 0; i < input.size() - filterSize + 1; i += stride) {
+                for(int j = 0; j < input.size() - filterSize + 1; j += stride) {
                     // Calculate convolution at current position
                     float sum = 0;
-                    for(int k = 0; k < filter.size(); k++) {
-                        for(int l = 0; l < filter.size(); l++) {
-                            sum += input[i+k][j+l] * filter[k][l];
+                    for(int k = 0; k < filterSize; k++) {
+                        for(int l = 0; l < filterSize; l++) {
+                            sum += input[i+k][j+l] * filter[k * filterSize + l];
                         }
                     }
                     // Apply ReLU activation
