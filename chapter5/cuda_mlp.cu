@@ -2,6 +2,7 @@
 #include <curand.h>
 #include <cublas_v2.h>
 #include <iostream>
+#include <vector>
 
 // CUDA kernel for ReLU activation
 __global__ void reluKernel(float* data, int size) {
@@ -42,9 +43,28 @@ public:
         curandGenerator_t gen;
         curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
         curandGenerateUniform(gen, d_weights, output_size * input_size);
+        curandDestroyGenerator(gen);
         
         // Initialize biases to zero
         cudaMemset(d_biases, 0, output_size * sizeof(float));
+    }
+
+    // Prevent copying
+    CudaLayer(const CudaLayer&) = delete;
+    CudaLayer& operator=(const CudaLayer&) = delete;
+
+    // Allow moving
+    CudaLayer(CudaLayer&& other) noexcept 
+        : input_size(other.input_size), output_size(other.output_size),
+          d_weights(other.d_weights), d_biases(other.d_biases),
+          d_input(other.d_input), d_output(other.d_output),
+          d_activation(other.d_activation), handle(other.handle) {
+        other.d_weights = nullptr;
+        other.d_biases = nullptr;
+        other.d_input = nullptr;
+        other.d_output = nullptr;
+        other.d_activation = nullptr;
+        other.handle = nullptr;
     }
 
     void forward(float* input, int batch_size) {
@@ -107,12 +127,12 @@ public:
     }
 
     ~CudaLayer() {
-        cudaFree(d_weights);
-        cudaFree(d_biases);
-        cudaFree(d_input);
-        cudaFree(d_output);
-        cudaFree(d_activation);
-        cublasDestroy(handle);
+        if (d_weights) cudaFree(d_weights);
+        if (d_biases) cudaFree(d_biases);
+        if (d_input) cudaFree(d_input);
+        if (d_output) cudaFree(d_output);
+        if (d_activation) cudaFree(d_activation);
+        if (handle) cublasDestroy(handle);
     }
 };
 
@@ -183,11 +203,12 @@ int main() {
     std::vector<int> layer_sizes = {2, 4, 3, 1};
     CudaMLP mlp(layer_sizes, 0.1f);
     
+    std::cout << "Training CUDA MLP..." << std::endl;
     mlp.train(d_X, d_y, batch_size, 1000);
+    std::cout << "Training completed" << std::endl;
 
     cudaFree(d_X);
     cudaFree(d_y);
     
     return 0;
 }
-
