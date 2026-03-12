@@ -58,7 +58,7 @@ public:
         std::vector<int64_t> sequence = prompt;
         
         for (int i = 0; i < max_length; ++i) {
-            auto input_tensor = torch::tensor({sequence}, torch::kLong).to(device);
+            auto input_tensor = torch::from_blob(sequence.data(), {1, static_cast<long>(sequence.size())}, torch::kLong).clone().to(device);
             auto logits = model.forward(input_tensor);
             
             // Get most likely next token
@@ -88,7 +88,7 @@ public:
                 auto candidate = beam.top();
                 beam.pop();
                 
-                auto input_tensor = torch::tensor({candidate.sequence}, torch::kLong).to(device);
+                auto input_tensor = torch::from_blob(const_cast<int64_t*>(candidate.sequence.data()), {1, static_cast<long>(candidate.sequence.size())}, torch::kLong).clone().to(device);
                 auto logits = model.forward(input_tensor);
                 auto log_probs = torch::log_softmax(logits, -1);
                 
@@ -128,7 +128,7 @@ public:
         std::vector<int64_t> sequence = prompt;
         
         for (int i = 0; i < max_length; ++i) {
-            auto input_tensor = torch::tensor({sequence}, torch::kLong).to(device);
+            auto input_tensor = torch::from_blob(sequence.data(), {1, static_cast<long>(sequence.size())}, torch::kLong).clone().to(device);
             auto logits = model.forward(input_tensor) / temperature;
             
             // Get top k tokens
@@ -155,7 +155,7 @@ public:
         std::vector<int64_t> sequence = prompt;
         
         for (int i = 0; i < max_length; ++i) {
-            auto input_tensor = torch::tensor({sequence}, torch::kLong).to(device);
+            auto input_tensor = torch::from_blob(sequence.data(), {1, static_cast<long>(sequence.size())}, torch::kLong).clone().to(device);
             auto logits = model.forward(input_tensor) / temperature;
             
             // Sort probabilities in descending order

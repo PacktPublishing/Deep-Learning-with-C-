@@ -165,10 +165,15 @@ public:
             total_candidate_length += candidate.size();
             
             // Find closest reference length for this sentence
-            int closest_ref_length = references[0].size();
+            std::vector<std::vector<std::string>> tokenized_refs;
+            for (const auto& ref_text : references) {
+                tokenized_refs.push_back(tokenize(ref_text));
+            }
+            
+            int closest_ref_length = tokenized_refs[0].size();
             int min_diff = std::abs(static_cast<int>(candidate.size()) - closest_ref_length);
             
-            for (const auto& reference : references) {
+            for (const auto& reference : tokenized_refs) {
                 int diff = std::abs(static_cast<int>(candidate.size()) - static_cast<int>(reference.size()));
                 if (diff < min_diff) {
                     min_diff = diff;
@@ -182,7 +187,7 @@ public:
                 auto candidate_counts = count_ngrams(candidate, n);
                 
                 std::unordered_map<std::string, int> max_ref_counts;
-                for (const auto& reference : references) {
+                for (const auto& reference : tokenized_refs) {
                     auto ref_counts = count_ngrams(reference, n);
                     for (const auto& [ngram, count] : ref_counts) {
                         max_ref_counts[ngram] = std::max(max_ref_counts[ngram], count);
