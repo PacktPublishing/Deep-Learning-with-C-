@@ -85,7 +85,11 @@ struct AutoregressiveLLM : torch::nn::Module {
         
         for (int i = 0; i < max_new_tokens; ++i) {
             // Convert current sequence to tensor
-            auto input_tensor = torch::tensor({generated_sequence}, torch::kLong).to(device);
+            auto input_tensor = torch::from_blob(
+                generated_sequence.data(), 
+                {1, static_cast<long>(generated_sequence.size())}, 
+                torch::kLong
+            ).clone().to(device);
             
             // Get logits for next token
             auto logits = forward(input_tensor);
@@ -116,7 +120,12 @@ struct AutoregressiveLLM : torch::nn::Module {
         std::vector<int64_t> generated_sequence = prompt;
         
         for (int i = 0; i < max_new_tokens; ++i) {
-            auto input_tensor = torch::tensor({generated_sequence}, torch::kLong).to(device);
+            auto input_tensor = torch::from_blob(
+                generated_sequence.data(), 
+                {1, static_cast<long>(generated_sequence.size())}, 
+                torch::kLong
+            ).clone().to(device);
+            
             auto logits = forward(input_tensor);
             
             // Take most likely next token
@@ -186,7 +195,7 @@ int main() {
         auto logits = llm.forward(input_ids);
         
         // Autoregressive loss: predict next token at each position
-        auto loss = torch::cross_entropy(
+        auto loss = torch::nn::functional::cross_entropy(
             logits.view({-1, vocab_size}), 
             target_ids.view({-1})
         );
@@ -238,10 +247,7 @@ int main() {
     }
     std::cout << std::endl;
     
-    // Save model
-    std::cout << "\n=== Saving Model ===" << std::endl;
-    torch::save(llm, "autoregressive_llm.pt");
-    std::cout << "Model saved to autoregressive_llm.pt" << std::endl;
+    std::cout << "\nAutoregressive LLM training and testing completed successfully!" << std::endl;
     
     return 0;
 }

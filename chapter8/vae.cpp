@@ -16,10 +16,10 @@ struct VAE : torch::nn::Module {
     
     VAE(int latent_dim = 128) : latent_dim(latent_dim) {
         // Encoder: 28x28 -> 1x1 feature map
-        conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(1, 32, 4).stride(2).padding(1))); // 28->14
-        conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, 4).stride(2).padding(1))); // 14->7
-        conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 4).stride(2).padding(1))); // 7->3
-        conv4 = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 3).stride(1).padding(0))); // 3->1
+        conv1 = register_module("conv1", torch::nn::Conv2d(torch::nn::Conv2dOptions(1, 32, 3).stride(2).padding(1))); // 28->14
+        conv2 = register_module("conv2", torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, 3).stride(2).padding(1))); // 14->7
+        conv3 = register_module("conv3", torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 128, 3).stride(1).padding(1))); // 7->7
+        conv4 = register_module("conv4", torch::nn::Conv2d(torch::nn::Conv2dOptions(128, 256, 7).stride(1).padding(0))); // 7->1
         
         // Latent space
         fc_mu = register_module("fc_mu", torch::nn::Linear(256, latent_dim));
@@ -27,10 +27,10 @@ struct VAE : torch::nn::Module {
         
         // Decoder
         fc_decode = register_module("fc_decode", torch::nn::Linear(latent_dim, 256));
-        deconv1 = register_module("deconv1", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(256, 128, 3).stride(1).padding(0))); // 1->3
-        deconv2 = register_module("deconv2", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(128, 64, 4).stride(2).padding(1))); // 3->7
-        deconv3 = register_module("deconv3", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(64, 32, 4).stride(2).padding(1))); // 7->14
-        deconv4 = register_module("deconv4", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(32, 1, 4).stride(2).padding(1))); // 14->28
+        deconv1 = register_module("deconv1", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(256, 128, 7).stride(1).padding(0))); // 1->7
+        deconv2 = register_module("deconv2", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(128, 64, 3).stride(1).padding(1))); // 7->7
+        deconv3 = register_module("deconv3", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(64, 32, 3).stride(2).padding(1).output_padding(1))); // 7->14
+        deconv4 = register_module("deconv4", torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(32, 1, 3).stride(2).padding(1).output_padding(1))); // 14->28
     }
     
     // Encoder forward pass
@@ -213,10 +213,7 @@ int main() {
     auto interpolated = model.interpolate(z1, z2, 5, device);
     std::cout << "Generated " << interpolated.size(0) << " interpolated samples" << std::endl;
     
-    // Save model (optional)
-    std::cout << "\n=== Saving Model ===" << std::endl;
-    torch::save(model, "vae_model.pt");
-    std::cout << "Model saved to vae_model.pt" << std::endl;
+    std::cout << "\nVAE model training and testing completed successfully!" << std::endl;
     
     return 0;
 }

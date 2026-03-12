@@ -88,24 +88,23 @@ struct Discriminator : torch::nn::Module {
 
 // Vision GAN following structured 5-step training
 struct VisionGAN : torch::nn::Module {
-    Generator generator;
-    Discriminator discriminator;
+    std::shared_ptr<Generator> generator;
+    std::shared_ptr<Discriminator> discriminator;
     
     int latent_dim;
     int img_channels;
     
     VisionGAN(int latent_dim = 100, int img_channels = 3) 
-        : latent_dim(latent_dim), img_channels(img_channels),
-          generator(latent_dim, img_channels), discriminator(img_channels) {
+        : latent_dim(latent_dim), img_channels(img_channels) {
         
-        register_module("generator", generator);
-        register_module("discriminator", discriminator);
+        generator = register_module("generator", std::make_shared<Generator>(latent_dim, img_channels));
+        discriminator = register_module("discriminator", std::make_shared<Discriminator>(img_channels));
     }
     
     torch::Tensor generate(int num_samples, torch::Device device) {
         torch::NoGradGuard no_grad;
         auto noise = torch::randn({num_samples, latent_dim}).to(device);
-        return generator.forward(noise);
+        return generator->forward(noise);
     }
 };
 
@@ -139,9 +138,9 @@ int main() {
     std::cout << "Minimax Objective: min_G max_D E[log D(x)] + E[log(1-D(G(z)))]" << std::endl;
     
     // Optimizers with GAN-specific hyperparameters
-    torch::optim::Adam gen_optimizer(gan.generator.parameters(), 
+    torch::optim::Adam gen_optimizer(gan.generator->parameters(), 
         torch::optim::AdamOptions(lr).betas(std::make_tuple(0.5, 0.999)));
-    torch::optim::Adam disc_optimizer(gan.discriminator.parameters(), 
+    torch::optim::Adam disc_optimizer(gan.discriminator->parameters(), 
         torch::optim::AdamOptions(lr).betas(std::make_tuple(0.5, 0.999)));
     
     std::cout << "\nStarting structured 5-step GAN training..." << std::endl;
@@ -157,7 +156,7 @@ int main() {
         // STEP 2: Generate Synthetic Data
         // Sample random noise from Gaussian distribution and produce synthetic data (label = 0)
         auto noise = torch::randn({batch_size, latent_dim}).to(device);
-        auto fake_images = gan.generator.forward(noise);
+        auto fake_images = gan.generator->forward(noise);
         
         // STEP 3: Create Training Pairs
         // Combine generated data (label = 0) with real data (label = 1)
@@ -169,12 +168,12 @@ int main() {
         disc_optimizer.zero_grad();
         
         // Discriminator classifies real samples (should output 1)
-        auto real_pred = gan.discriminator.forward(real_images);
+        auto real_pred = gan.discriminator->forward(real_images);
         auto real_loss = adversarial_loss(real_pred, real_labels);
         
         // Discriminator classifies fake samples (should output 0)
         // Use detach() to prevent gradients flowing to generator
-        auto fake_pred = gan.discriminator.forward(fake_images.detach());
+        auto fake_pred = gan.discriminator->forward(fake_images.detach());
         auto fake_loss = adversarial_loss(fake_pred, fake_labels);
         
         // Combined discriminator loss: maximize log(D(x)) + log(1-D(G(z)))
@@ -191,8 +190,8 @@ int main() {
         
         // Generate new samples for generator training
         auto gen_noise = torch::randn({batch_size, latent_dim}).to(device);
-        auto gen_images = gan.generator.forward(gen_noise);
-        auto gen_pred = gan.discriminator.forward(gen_images);
+        auto gen_images = gan.generator->forward(gen_noise);
+        auto gen_pred = gan.discriminator->forward(gen_images);
         
         // Generator loss: minimize log(1-D(G(z))) ≡ maximize log(D(G(z)))
         // Generator wants discriminator to classify fake as real (output 1)
@@ -230,11 +229,7 @@ int main() {
     std::cout << "Generated " << generated_images.size(0) << " images of size " 
               << generated_images.size(2) << "x" << generated_images.size(3) << std::endl;
     
-    // Save models
-    std::cout << "\n=== Saving Models ===" << std::endl;
-    torch::save(gan.generator, "generator.pt");
-    torch::save(gan.discriminator, "discriminator.pt");
-    std::cout << "Models saved to generator.pt and discriminator.pt" << std::endl;
+    std::cout << "\nStructured Vision GAN training completed successfully!" << std::endl;
     
     return 0;
 }

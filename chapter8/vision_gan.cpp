@@ -96,25 +96,24 @@ struct Discriminator : torch::nn::Module {
 
 // Vision GAN class combining Generator and Discriminator
 struct VisionGAN : torch::nn::Module {
-    Generator generator;
-    Discriminator discriminator;
+    std::shared_ptr<Generator> generator;
+    std::shared_ptr<Discriminator> discriminator;
     
     int latent_dim;
     int img_channels;
     
     VisionGAN(int latent_dim = 100, int img_channels = 3) 
-        : latent_dim(latent_dim), img_channels(img_channels),
-          generator(latent_dim, img_channels), discriminator(img_channels) {
+        : latent_dim(latent_dim), img_channels(img_channels) {
         
-        register_module("generator", generator);
-        register_module("discriminator", discriminator);
+        generator = register_module("generator", std::make_shared<Generator>(latent_dim, img_channels));
+        discriminator = register_module("discriminator", std::make_shared<Discriminator>(img_channels));
     }
     
     // Generate images from noise
     torch::Tensor generate(int num_samples, torch::Device device) {
         torch::NoGradGuard no_grad;
         auto noise = torch::randn({num_samples, latent_dim}).to(device);
-        return generator.forward(noise);
+        return generator->forward(noise);
     }
     
     // Interpolate between two noise vectors
@@ -125,7 +124,7 @@ struct VisionGAN : torch::nn::Module {
         for (int i = 0; i < steps; ++i) {
             float alpha = static_cast<float>(i) / (steps - 1);
             auto z_interp = (1 - alpha) * z1 + alpha * z2;
-            interpolations.push_back(generator.forward(z_interp));
+            interpolations.push_back(generator->forward(z_interp));
         }
         
         return torch::cat(interpolations, 0);
@@ -165,19 +164,19 @@ int main() {
     
     // Count parameters
     int gen_params = 0, disc_params = 0;
-    for (const auto& param : gan.generator.parameters()) {
+    for (const auto& param : gan.generator->parameters()) {
         gen_params += param.numel();
     }
-    for (const auto& param : gan.discriminator.parameters()) {
+    for (const auto& param : gan.discriminator->parameters()) {
         disc_params += param.numel();
     }
     std::cout << "Generator parameters: " << gen_params << std::endl;
     std::cout << "Discriminator parameters: " << disc_params << std::endl;
     
     // Optimizers
-    torch::optim::Adam gen_optimizer(gan.generator.parameters(), 
+    torch::optim::Adam gen_optimizer(gan.generator->parameters(), 
         torch::optim::AdamOptions(lr).betas(std::make_tuple(0.5, 0.999)));
-    torch::optim::Adam disc_optimizer(gan.discriminator.parameters(), 
+    torch::optim::Adam disc_optimizer(gan.discriminator->parameters(), 
         torch::optim::AdamOptions(lr).betas(std::make_tuple(0.5, 0.999)));
     
     std::cout << "\nStarting GAN training..." << std::endl;
@@ -195,13 +194,13 @@ int main() {
         disc_optimizer.zero_grad();
         
         // Real images
-        auto real_pred = gan.discriminator.forward(real_images);
+        auto real_pred = gan.discriminator->forward(real_images);
         auto real_loss = adversarial_loss(real_pred, real_labels);
         
         // Fake images
         auto noise = torch::randn({batch_size, latent_dim}).to(device);
-        auto fake_images = gan.generator.forward(noise);
-        auto fake_pred = gan.discriminator.forward(fake_images.detach());
+        auto fake_images = gan.generator->forward(noise);
+        auto fake_pred = gan.discriminator->forward(fake_images.detach());
         auto fake_loss = adversarial_loss(fake_pred, fake_labels);
         
         auto disc_loss = (real_loss + fake_loss) / 2;
@@ -212,8 +211,8 @@ int main() {
         gen_optimizer.zero_grad();
         
         auto gen_noise = torch::randn({batch_size, latent_dim}).to(device);
-        auto gen_images = gan.generator.forward(gen_noise);
-        auto gen_pred = gan.discriminator.forward(gen_images);
+        auto gen_images = gan.generator->forward(gen_noise);
+        auto gen_pred = gan.discriminator->forward(gen_images);
         auto gen_loss = adversarial_loss(gen_pred, real_labels); // Generator wants to fool discriminator
         
         gen_loss.backward();
@@ -247,11 +246,7 @@ int main() {
     auto interpolated = gan.interpolate(z1, z2, 5, device);
     std::cout << "Generated " << interpolated.size(0) << " interpolated images" << std::endl;
     
-    // Save models
-    std::cout << "\n=== Saving Models ===" << std::endl;
-    torch::save(gan.generator, "generator.pt");
-    torch::save(gan.discriminator, "discriminator.pt");
-    std::cout << "Models saved to generator.pt and discriminator.pt" << std::endl;
+    std::cout << "\nVision GAN training and testing completed successfully!" << std::endl;
     
     return 0;
 }

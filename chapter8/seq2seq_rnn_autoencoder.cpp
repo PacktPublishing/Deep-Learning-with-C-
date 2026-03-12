@@ -211,7 +211,7 @@ int main() {
         auto logits = model.forward(source_ids, target_ids);
         
         // Calculate cross-entropy loss
-        auto loss = torch::cross_entropy(
+        auto loss = torch::nn::functional::cross_entropy(
             logits.view({-1, vocab_size}), 
             target_ids.view({-1})
         );
@@ -268,10 +268,7 @@ int main() {
     }
     std::cout << std::endl;
     
-    // Save model
-    std::cout << "\n=== Saving Model ===" << std::endl;
-    torch::save(model, "seq2seq_rnn_autoencoder.pt");
-    std::cout << "Model saved to seq2seq_rnn_autoencoder.pt" << std::endl;
+    std::cout << "\nSeq2Seq RNN AutoEncoder training and testing completed successfully!" << std::endl;
     
     return 0;
 }
