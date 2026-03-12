@@ -2,15 +2,15 @@
 class UNetImpl : public torch::nn::Module {
 private:
     // Encoder
-    torch::nn::Sequential encoder1, encoder2, encoder3, encoder4;
-    torch::nn::MaxPool2d maxpool;
+    torch::nn::Sequential encoder1{nullptr}, encoder2{nullptr}, encoder3{nullptr}, encoder4{nullptr};
+    torch::nn::MaxPool2d maxpool{nullptr};
     
     // Decoder
-    torch::nn::Sequential decoder4, decoder3, decoder2, decoder1;
-    torch::nn::ConvTranspose2d upconv4, upconv3, upconv2, upconv1;
+    torch::nn::Sequential decoder4{nullptr}, decoder3{nullptr}, decoder2{nullptr}, decoder1{nullptr};
+    torch::nn::ConvTranspose2d upconv4{nullptr}, upconv3{nullptr}, upconv2{nullptr}, upconv1{nullptr};
     
     // Final layer
-    torch::nn::Conv2d final_layer;
+    torch::nn::Conv2d final_layer{nullptr};
 
 public:
     UNetImpl(int in_channels = 1, int out_channels = 1) {
@@ -121,6 +121,11 @@ int main() {
     
     // Forward pass
     auto output = model->forward(input);
+    
+    std::cout << "Input shape: " << input.sizes() << std::endl;
+    std::cout << "Output shape: " << output.sizes() << std::endl;
+    std::cout << "Output min: " << output.min().item<float>() << std::endl;
+    std::cout << "Output max: " << output.max().item<float>() << std::endl;
     
     return 0;
 }

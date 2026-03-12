@@ -2,10 +2,10 @@
 
 class CNNImpl : public torch::nn::Module {
 private:
-    torch::nn::Conv2d conv1, conv2, conv3;
-    torch::nn::Linear fc1, fc2;
-    torch::nn::MaxPool2d pool;
-    torch::nn::Dropout dropout;
+    torch::nn::Conv2d conv1{nullptr}, conv2{nullptr}, conv3{nullptr};
+    torch::nn::Linear fc1{nullptr}, fc2{nullptr};
+    torch::nn::MaxPool2d pool{nullptr};
+    torch::nn::Dropout dropout{nullptr};
 
 public:
     CNNImpl(int num_classes = 10) {

@@ -18,17 +18,19 @@ public:
     CudaEigenConvLayer(int inCh, int outCh, int kSize, int str) 
         : inputChannels(inCh), outputChannels(outCh), kernelSize(kSize), stride(str) {
         cublasCreate(&handle);
+        d_patches = nullptr;
+        d_output = nullptr;
         
         // Initialize filters on CPU with Eigen, then copy to GPU
-        MatrixXf filters_cpu = MatrixXf::Random(outCh, inCh * kSize * kSize) * 0.2f - 0.1f;
+        MatrixXf filters_cpu = (MatrixXf::Random(outCh, inCh * kSize * kSize) * 0.2f).array() - 0.1f;
         cudaMalloc(&d_filters, filters_cpu.size() * sizeof(float));
         cudaMemcpy(d_filters, filters_cpu.data(), filters_cpu.size() * sizeof(float), cudaMemcpyHostToDevice);
     }
     
     ~CudaEigenConvLayer() {
         cudaFree(d_filters);
-        cudaFree(d_patches);
-        cudaFree(d_output);
+        if (d_patches) cudaFree(d_patches);
+        if (d_output) cudaFree(d_output);
         cublasDestroy(handle);
     }
     
@@ -72,3 +74,22 @@ public:
         return result.cwiseMax(0.0f);
     }
 };
+
+int main() {
+    CudaEigenConvLayer conv(1, 64, 3, 1);
+    
+    MatrixXf input(8, 8);
+    for(int i = 0; i < 8; i++) {
+        for(int j = 0; j < 8; j++) {
+            input(i, j) = i * 8 + j + 1;
+        }
+    }
+    
+    MatrixXf output = conv.forward(input);
+    
+    cout << "Input: " << input.rows() << "x" << input.cols() << endl;
+    cout << "Output: " << output.rows() << "x" << output.cols() << endl;
+    cout << "CUDA Eigen convolution completed successfully!" << endl;
+    
+    return 0;
+}
