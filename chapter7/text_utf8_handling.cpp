@@ -1,5 +1,7 @@
 #include <codecvt>
 #include <locale>
+#include <iostream>
+#include <string>
 
 class UTF8Handler {
 public:
@@ -29,3 +31,16 @@ public:
         return length;
     }
 };
+
+int main() {
+    std::string utf8_text = "Hello 世界 🌍";
+    std::cout << "UTF-8 text: " << utf8_text << std::endl;
+    std::cout << "Byte length: " << utf8_text.length() << std::endl;
+    std::cout << "Character length: " << UTF8Handler::utf8Length(utf8_text) << std::endl;
+    
+    std::wstring wide = UTF8Handler::utf8ToWide(utf8_text);
+    std::string back = UTF8Handler::wideToUtf8(wide);
+    std::cout << "Converted back: " << back << std::endl;
+    
+    return 0;
+}

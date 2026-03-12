@@ -86,37 +86,41 @@ public:
 
 class Seq2SeqTranslator : public torch::nn::Module {
 private:
-    Encoder encoder{nullptr};
-    Decoder decoder{nullptr};
+    std::shared_ptr<Encoder> encoder;
+    std::shared_ptr<Decoder> decoder;
     
 public:
     Seq2SeqTranslator(int src_vocab_size, int tgt_vocab_size, int embed_size, int hidden_size) {
-        encoder = register_module("encoder", Encoder(src_vocab_size, embed_size, hidden_size));
-        decoder = register_module("decoder", Decoder(tgt_vocab_size, embed_size, hidden_size));
+        encoder = register_module("encoder", std::make_shared<Encoder>(src_vocab_size, embed_size, hidden_size));
+        decoder = register_module("decoder", std::make_shared<Decoder>(tgt_vocab_size, embed_size, hidden_size));
     }
     
     torch::Tensor forward(torch::Tensor src, torch::Tensor tgt) {
-        auto [h0, c0] = encoder.forward(src);
-        return decoder.forward(tgt, h0, c0);
+        auto [h0, c0] = encoder->forward(src);
+        return decoder->forward(tgt, h0, c0);
     }
     
     std::vector<int> translate(torch::Tensor src, Vocabulary& tgt_vocab, int max_length = 20) {
         eval();
         torch::NoGradGuard no_grad;
         
-        auto [h0, c0] = encoder.forward(src);
+        auto [h0, c0] = encoder->forward(src);
         
         std::vector<int> result;
-        auto input = torch::tensor({{tgt_vocab.SOS_TOKEN}}, torch::kLong).to(src.device());
+        std::vector<int64_t> input_data = {static_cast<int64_t>(tgt_vocab.SOS_TOKEN)};
+        auto input = torch::from_blob(input_data.data(), {1, 1}, torch::kLong).clone().to(src.device());
         
         for (int i = 0; i < max_length; ++i) {
-            auto output = decoder.forward(input, h0, c0);
+            auto output = decoder->forward(input, h0, c0);
             auto predicted = torch::argmax(output, -1);
             int token = predicted[0][0].item<int>();
             
             if (token == tgt_vocab.EOS_TOKEN) break;
             result.push_back(token);
-            input = predicted;
+            
+            // Update input for next iteration
+            input_data[0] = token;
+            input = torch::from_blob(input_data.data(), {1, 1}, torch::kLong).clone().to(src.device());
         }
         
         return result;
@@ -134,15 +138,17 @@ std::vector<std::string> tokenize(const std::string& sentence) {
 }
 
 torch::Tensor sentence_to_tensor(const std::vector<std::string>& sentence, Vocabulary& vocab) {
-    std::vector<int> ids;
+    std::vector<int64_t> ids;
     for (const auto& word : sentence) {
         ids.push_back(vocab.get_id(word));
     }
     ids.push_back(vocab.EOS_TOKEN);
-    return torch::tensor({ids}, torch::kLong);
+    return torch::from_blob(ids.data(), {1, static_cast<long>(ids.size())}, torch::kLong).clone();
 }
 
 int main() {
+    std::cout << "Testing LSTM Translator..." << std::endl;
+    
     torch::manual_seed(42);
     
     // Simple English-French dataset
@@ -160,6 +166,9 @@ int main() {
         for (const auto& word : tokenize(fr)) tgt_vocab.add_word(word);
     }
     
+    std::cout << "Source vocabulary size: " << src_vocab.size() << std::endl;
+    std::cout << "Target vocabulary size: " << tgt_vocab.size() << std::endl;
+    
     // Model parameters
     const int embed_size = 64;
     const int hidden_size = 128;
@@ -167,11 +176,15 @@ int main() {
     const float learning_rate = 0.01f;
     
     auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+    std::cout << "Using device: " << (device == torch::kCUDA ? "CUDA" : "CPU") << std::endl;
+    
     auto model = std::make_shared<Seq2SeqTranslator>(
         src_vocab.size(), tgt_vocab.size(), embed_size, hidden_size);
     model->to(device);
     
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(learning_rate));
+    
+    std::cout << "Training translator..." << std::endl;
     
     // Training
     model->train();
@@ -186,12 +199,12 @@ int main() {
             auto tgt_input = sentence_to_tensor(tgt_tokens, tgt_vocab).to(device);
             
             // Target for loss (shifted by one position)
-            std::vector<int> tgt_ids;
+            std::vector<int64_t> tgt_ids;
             for (const auto& word : tgt_tokens) {
                 tgt_ids.push_back(tgt_vocab.get_id(word));
             }
             tgt_ids.push_back(tgt_vocab.EOS_TOKEN);
-            auto tgt_output = torch::tensor({tgt_ids}, torch::kLong).to(device);
+            auto tgt_output = torch::from_blob(tgt_ids.data(), {1, static_cast<long>(tgt_ids.size())}, torch::kLong).clone().to(device);
             
             optimizer.zero_grad();
             auto predictions = model->forward(src_tensor, tgt_input);
@@ -221,6 +234,8 @@ int main() {
         }
         std::cout << std::endl;
     }
+    
+    std::cout << "LSTM Translator test completed successfully!" << std::endl;
     
     return 0;
 }

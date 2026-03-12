@@ -93,7 +93,16 @@ public:
     }
     
     void train(const std::vector<std::string>& corpus, int epochs = 100, float learning_rate = 0.001f) {
-        torch::optim::Adam optimizer(torch::nn::ModuleList({lstm, output_layer})->parameters(), learning_rate);
+        // Collect all parameters
+        std::vector<torch::Tensor> params;
+        for (const auto& p : lstm->parameters()) {
+            params.push_back(p);
+        }
+        for (const auto& p : output_layer->parameters()) {
+            params.push_back(p);
+        }
+        
+        torch::optim::Adam optimizer(params, learning_rate);
         
         std::vector<std::vector<int>> sequences;
         for (const auto& text : corpus) {

@@ -2,6 +2,17 @@
 #include <functional>
 #include <random>
 #include <cmath>
+#include <iostream>
+
+namespace ActivationFunctions {
+    std::function<Eigen::MatrixXf(const Eigen::MatrixXf&)> tanh = [](const Eigen::MatrixXf& x) {
+        return x.unaryExpr([](float val) { return std::tanh(val); });
+    };
+    
+    std::function<Eigen::MatrixXf(const Eigen::MatrixXf&)> sigmoid = [](const Eigen::MatrixXf& x) {
+        return x.unaryExpr([](float val) { return 1.0f / (1.0f + std::exp(-val)); });
+    };
+}
 
 class RNNCell {
 private:
@@ -65,12 +76,25 @@ public:
     }
 };
 
-namespace ActivationFunctions {
-    std::function<Eigen::MatrixXf(const Eigen::MatrixXf&)> tanh = [](const Eigen::MatrixXf& x) {
-        return x.unaryExpr([](float val) { return std::tanh(val); });
-    };
+int main() {
+    std::cout << "Testing RNNCell..." << std::endl;
     
-    std::function<Eigen::MatrixXf(const Eigen::MatrixXf&)> sigmoid = [](const Eigen::MatrixXf& x) {
-        return x.unaryExpr([](float val) { return 1.0f / (1.0f + std::exp(-val)); });
-    };
+    // Create RNN cell with input_size=10, hidden_size=20, output_size=5
+    RNNCell rnn(10, 20, 5);
+    
+    // Create sample input and hidden state
+    Eigen::VectorXf input = Eigen::VectorXf::Random(10);
+    Eigen::VectorXf hidden = Eigen::VectorXf::Zero(20);
+    
+    std::cout << "Input size: " << input.size() << std::endl;
+    std::cout << "Hidden size: " << hidden.size() << std::endl;
+    
+    // Forward pass
+    auto [new_hidden, output] = rnn.forward(input, hidden);
+    
+    std::cout << "New hidden size: " << new_hidden.size() << std::endl;
+    std::cout << "Output size: " << output.size() << std::endl;
+    std::cout << "RNNCell forward pass completed successfully!" << std::endl;
+    
+    return 0;
 }

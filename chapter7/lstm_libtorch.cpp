@@ -1,7 +1,6 @@
 #include <torch/torch.h>
 #include <iostream>
 #include <vector>
-#include <random>
 
 class ProductionLSTM : public torch::nn::Module {
 private:
@@ -16,7 +15,7 @@ public:
                    int output_size, float dropout_rate = 0.2f)
         : hidden_size(hidden_sz), num_layers(num_layers_val) {
         
-        // Initialize LSTM with modern PyTorch options [[27](https://pytorch.org/tutorials/beginner/nlp/sequence_models_tutorial.html), [28](https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html)]
+        // Initialize LSTM
         lstm = register_module("lstm", torch::nn::LSTM(
             torch::nn::LSTMOptions(input_size, hidden_size)
                 .num_layers(num_layers)
@@ -32,11 +31,10 @@ public:
             torch::nn::Dropout(dropout_rate));
     }
     
-    torch::Tensor forward(torch::Tensor input, 
-                         std::optional<std::tuple<torch::Tensor, torch::Tensor>> hidden = std::nullopt) {
-        
-        // LSTM forward pass with automatic gradient computation
-        auto [lstm_out, new_hidden] = lstm->forward(input, hidden);
+    torch::Tensor forward(torch::Tensor input) {
+        // LSTM forward pass
+        auto lstm_result = lstm->forward(input);
+        auto lstm_out = std::get<0>(lstm_result);
         
         // Apply dropout for regularization
         lstm_out = dropout->forward(lstm_out);
@@ -47,45 +45,27 @@ public:
         return output;
     }
     
-    // Advanced training with mixed precision and gradient clipping
     float train_step(torch::Tensor input, torch::Tensor target, 
-                    torch::optim::Optimizer& optimizer, 
-                    torch::GradScaler& scaler, bool use_amp = true) {
+                    torch::optim::Optimizer& optimizer) {
         
         optimizer.zero_grad();
-        torch::Tensor loss;
         
-        if (use_amp) {
-            // Mixed precision training for memory efficiency [[26](https://www.runpod.io/articles/guides/gpu-memory-management-for-large-language-models-optimization-strategies-for-production-deployment)]
-            {
-                torch::autocast::autocast_mode autocast_guard(torch::kCUDA, true);
-                auto predictions = forward(input);
-                loss = torch::mse_loss(predictions, target);
-            }
-            
-            // Gradient scaling for numerical stability
-            scaler.scale(loss).backward();
-            scaler.unscale_(optimizer);
-            
-            // Gradient clipping to prevent exploding gradients
-            torch::nn::utils::clip_grad_norm_(parameters(), 5.0);
-            
-            scaler.step(optimizer);
-            scaler.update();
-        } else {
-            auto predictions = forward(input);
-            loss = torch::mse_loss(predictions, target);
-            loss.backward();
-            
-            torch::nn::utils::clip_grad_norm_(parameters(), 5.0);
-            optimizer.step();
-        }
+        auto predictions = forward(input);
+        auto loss = torch::mse_loss(predictions, target);
+        loss.backward();
+        
+        // Gradient clipping to prevent exploding gradients
+        torch::nn::utils::clip_grad_norm_(parameters(), 5.0);
+        
+        optimizer.step();
         
         return loss.item<float>();
     }
 };
 
 int main() {
+    std::cout << "Testing LibTorch LSTM..." << std::endl;
+    
     torch::manual_seed(42);
     
     // Model parameters
@@ -100,12 +80,13 @@ int main() {
     
     // Create model and move to GPU if available
     auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+    std::cout << "Using device: " << (device == torch::kCUDA ? "CUDA" : "CPU") << std::endl;
+    
     auto model = std::make_shared<ProductionLSTM>(input_size, hidden_size, num_layers, output_size);
     model->to(device);
     
-    // Optimizer and gradient scaler
+    // Optimizer
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(learning_rate));
-    torch::GradScaler scaler;
     
     // Generate sine wave training data
     auto generate_data = [&](int batch_sz, int seq_len) {
@@ -114,12 +95,14 @@ int main() {
         return std::make_pair(x, y);
     };
     
+    std::cout << "Training LSTM model..." << std::endl;
+    
     // Training loop
     model->train();
     for (int epoch = 0; epoch < num_epochs; ++epoch) {
         auto [input, target] = generate_data(batch_size, seq_length);
         
-        float loss = model->train_step(input, target, optimizer, scaler, device.is_cuda());
+        float loss = model->train_step(input, target, optimizer);
         
         if (epoch % 10 == 0) {
             std::cout << "Epoch " << epoch << ", Loss: " << loss << std::endl;
@@ -127,6 +110,7 @@ int main() {
     }
     
     // Evaluation
+    std::cout << "\nEvaluating model..." << std::endl;
     model->eval();
     torch::NoGradGuard no_grad;
     auto [test_input, test_target] = generate_data(1, seq_length);
@@ -134,6 +118,7 @@ int main() {
     float test_loss = torch::mse_loss(predictions, test_target).item<float>();
     
     std::cout << "Final test loss: " << test_loss << std::endl;
+    std::cout << "LibTorch LSTM test completed successfully!" << std::endl;
     
     return 0;
 }

@@ -1,4 +1,5 @@
 #include <torch/torch.h>
+#include <iostream>
 #include <vector>
 
 class RNN_LibTorch : public torch::nn::Module {
@@ -134,11 +135,15 @@ public:
 
 // Usage example
 void train_rnn() {
+    std::cout << "Training RNN with BPTT using LibTorch..." << std::endl;
+    
     // Model configuration
     int input_size = 10, hidden_size = 20, output_size = 5, seq_length = 15, batch_size = 32;
     
     // Create model and move to GPU if available
     auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+    std::cout << "Using device: " << (device == torch::kCUDA ? "CUDA" : "CPU") << std::endl;
+    
     RNN_LibTorch model(input_size, hidden_size, output_size, seq_length);
     model.to(device);
     
@@ -163,4 +168,11 @@ void train_rnn() {
             std::cout << "Epoch " << epoch << ", Loss: " << loss.item<float>() << std::endl;
         }
     }
+    
+    std::cout << "RNN BPTT training completed successfully!" << std::endl;
+}
+
+int main() {
+    train_rnn();
+    return 0;
 }

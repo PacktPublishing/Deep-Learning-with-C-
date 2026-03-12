@@ -62,7 +62,7 @@ public:
             // Hidden gradients
             VectorXd dh = Why.transpose() * dy + dh_next;
             VectorXd tanh_z = z[t].array().tanh();
-            VectorXd dh_raw = dh.cwiseProduct(1.0 - tanh_z.cwiseProduct(tanh_z));
+            VectorXd dh_raw = dh.cwiseProduct((1.0 - tanh_z.array() * tanh_z.array()).matrix());
             dbh += dh_raw;
             
             // Weight gradients

@@ -385,6 +385,9 @@ public:
         float score;
         LSTMCell::LSTMState state;
         
+        BeamCandidate(int hidden_size, int output_size) 
+            : score(0.0f), state(hidden_size, output_size) {}
+        
         bool operator<(const BeamCandidate& other) const {
             return score < other.score; // For max-heap
         }
@@ -403,7 +406,7 @@ public:
         
         auto seed_result = lstm->forwardSequence(seed_inputs);
         
-        BeamCandidate initial_candidate;
+        BeamCandidate initial_candidate(hidden_size, vocab_size);
         initial_candidate.sequence = seed_sequence;
         initial_candidate.score = 0.0f;
         if (!seed_result.states.empty()) {
@@ -441,7 +444,7 @@ public:
                 std::sort(top_tokens.rbegin(), top_tokens.rend());
                 
                 for (int i = 0; i < std::min(beam_width, (int)top_tokens.size()); ++i) {
-                    BeamCandidate new_candidate;
+                    BeamCandidate new_candidate(hidden_size, vocab_size);
                     new_candidate.sequence = current.sequence;
                     new_candidate.sequence.push_back(top_tokens[i].second);
                     new_candidate.score = current.score + std::log(top_tokens[i].first + 1e-10f);
@@ -513,7 +516,7 @@ public:
             file.read(reinterpret_cast<char*>(&word_len), sizeof(word_len));
             
             std::string word(word_len, '\0');
-            file.read(&word, word_len);
+            file.read(&word[0], word_len);
             
             int word_id;
             file.read(reinterpret_cast<char*>(&word_id), sizeof(word_id));
@@ -551,8 +554,7 @@ int main() {
     predictor.train(corpus, 50, 0.01f);
     
     // Test predictions
-    std::cout << "
-Testing predictions:" << std::endl;
+    std::cout << "\nTesting predictions:" << std::endl;
     
     std::string context = "the quick brown";
     std::string next_word = predictor.predictNextWord(context);
