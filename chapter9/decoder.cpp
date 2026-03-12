@@ -6,15 +6,15 @@ DecoderBlock::DecoderBlock(int d_model, int nhead, int d_ff) {
         torch::nn::MultiheadAttentionOptions(d_model, nhead)));
     cross_attn = register_module("cross_attn", torch::nn::MultiheadAttention(
         torch::nn::MultiheadAttentionOptions(d_model, nhead)));
-    norm1 = register_module("norm1", torch::nn::LayerNorm(d_model));
-    norm2 = register_module("norm2", torch::nn::LayerNorm(d_model));
-    norm3 = register_module("norm3", torch::nn::LayerNorm(d_model));
+    norm1 = register_module("norm1", torch::nn::LayerNorm(torch::nn::LayerNormOptions({d_model})));
+    norm2 = register_module("norm2", torch::nn::LayerNorm(torch::nn::LayerNormOptions({d_model})));
+    norm3 = register_module("norm3", torch::nn::LayerNorm(torch::nn::LayerNormOptions({d_model})));
     fc1 = register_module("fc1", torch::nn::Linear(d_model, d_ff));
     fc2 = register_module("fc2", torch::nn::Linear(d_ff, d_model));
 }
 
 torch::Tensor DecoderBlock::forward(torch::Tensor x, torch::Tensor enc_out, torch::Tensor mask) {
-    auto self_attn_out = std::get<0>(self_attn->forward(x, x, x, torch::Tensor(), torch::Tensor(), mask));
+    auto self_attn_out = std::get<0>(self_attn->forward(x, x, x, torch::Tensor(), false, mask));
     x = norm1->forward(x + self_attn_out);  // Masked self-attention + Add & Norm
     
     auto cross_attn_out = std::get<0>(cross_attn->forward(x, enc_out, enc_out));

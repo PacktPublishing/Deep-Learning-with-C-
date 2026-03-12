@@ -6,7 +6,7 @@
 int main() {
     int seq_len = 4, d_model = 512, nhead = 8, d_ff = 2048, num_layers = 6;
     
-    Decoder decoder(num_layers, d_model, nhead, d_ff);
+    auto decoder = std::make_shared<Decoder>(num_layers, d_model, nhead, d_ff);
     decoder->eval();
     
     auto tgt = torch::ones({seq_len, 1, d_model});

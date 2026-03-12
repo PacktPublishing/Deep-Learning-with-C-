@@ -20,11 +20,13 @@ public:
     
     // Multi-Head Attention with Linear Transformations
     static torch::Tensor multiHeadAttention(
-        const torch::Tensor& input,  // input [seq_len, d_model]
-        int d_model,
+        const torch::Tensor& Q,  // queries [seq_len, d_model]
+        const torch::Tensor& K,  // keys [seq_len, d_model]
+        const torch::Tensor& V,  // values [seq_len, d_model]
         int num_heads
     ) {
-        auto seq_len = input.size(0);
+        auto seq_len = Q.size(0);
+        auto d_model = Q.size(1);
         auto d_k = d_model / num_heads;
         
         // Linear transformation weights
@@ -34,14 +36,14 @@ public:
         auto W_o = torch::randn({d_model, d_model});
         
         // Apply linear transformations
-        auto Q = torch::matmul(input, W_q);
-        auto K = torch::matmul(input, W_k);
-        auto V = torch::matmul(input, W_v);
+        auto Q_proj = torch::matmul(Q, W_q);
+        auto K_proj = torch::matmul(K, W_k);
+        auto V_proj = torch::matmul(V, W_v);
         
         // Reshape to [seq_len, num_heads, d_k]
-        auto Q_heads = Q.view({seq_len, num_heads, d_k}).transpose(0, 1);  // [num_heads, seq_len, d_k]
-        auto K_heads = K.view({seq_len, num_heads, d_k}).transpose(0, 1);
-        auto V_heads = V.view({seq_len, num_heads, d_k}).transpose(0, 1);
+        auto Q_heads = Q_proj.view({seq_len, num_heads, d_k}).transpose(0, 1);  // [num_heads, seq_len, d_k]
+        auto K_heads = K_proj.view({seq_len, num_heads, d_k}).transpose(0, 1);
+        auto V_heads = V_proj.view({seq_len, num_heads, d_k}).transpose(0, 1);
         
         // Apply attention to each head
         std::vector<torch::Tensor> head_outputs;

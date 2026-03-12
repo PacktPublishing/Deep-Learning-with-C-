@@ -6,12 +6,12 @@
 #include "decoder.h"
 
 struct Transformer : torch::nn::Module {
-    Encoder encoder{nullptr};
-    Decoder decoder{nullptr};
+    std::shared_ptr<Encoder> encoder{nullptr};
+    std::shared_ptr<Decoder> decoder{nullptr};
     
     Transformer(int num_layers, int d_model, int nhead, int d_ff) {
-        encoder = register_module("encoder", Encoder(num_layers, d_model, nhead, d_ff));
-        decoder = register_module("decoder", Decoder(num_layers, d_model, nhead, d_ff));
+        encoder = register_module("encoder", std::make_shared<Encoder>(num_layers, d_model, nhead, d_ff));
+        decoder = register_module("decoder", std::make_shared<Decoder>(num_layers, d_model, nhead, d_ff));
     }
     
     torch::Tensor forward(torch::Tensor src, torch::Tensor tgt, torch::Tensor tgt_mask) {
@@ -23,7 +23,7 @@ struct Transformer : torch::nn::Module {
 int main() {
     int src_len = 5, tgt_len = 4, d_model = 512, nhead = 8, d_ff = 2048, num_layers = 6;
     
-    Transformer transformer(num_layers, d_model, nhead, d_ff);
+    auto transformer = std::make_shared<Transformer>(num_layers, d_model, nhead, d_ff);
     transformer->eval();
     
     // Create input tensors

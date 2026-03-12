@@ -4,8 +4,8 @@
 EncoderBlock::EncoderBlock(int d_model, int nhead, int d_ff) {
     attn = register_module("attn", torch::nn::MultiheadAttention(
         torch::nn::MultiheadAttentionOptions(d_model, nhead)));
-    norm1 = register_module("norm1", torch::nn::LayerNorm(d_model));
-    norm2 = register_module("norm2", torch::nn::LayerNorm(d_model));
+    norm1 = register_module("norm1", torch::nn::LayerNorm(torch::nn::LayerNormOptions({d_model})));
+    norm2 = register_module("norm2", torch::nn::LayerNorm(torch::nn::LayerNormOptions({d_model})));
     fc1 = register_module("fc1", torch::nn::Linear(d_model, d_ff));
     fc2 = register_module("fc2", torch::nn::Linear(d_ff, d_model));
 }
