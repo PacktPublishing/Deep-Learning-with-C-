@@ -40,7 +40,7 @@ public:
     void update(MatrixXd& weights, const MatrixXd& grad) override {
         if (cache.size() == 0) cache = MatrixXd::Zero(weights.rows(), weights.cols());
         cache = beta * cache + (1 - beta) * grad.array().square().matrix();
-        weights -= lr * grad.array() / (cache.array().sqrt() + eps).matrix();
+        weights -= (lr * grad.array() / (cache.array().sqrt() + eps)).matrix();
     }
 };
 
@@ -61,7 +61,7 @@ public:
         v = beta2 * v + (1 - beta2) * grad.array().square().matrix();
         MatrixXd m_hat = m / (1 - std::pow(beta1, t));
         MatrixXd v_hat = v / (1 - std::pow(beta2, t));
-        weights -= lr * m_hat.array() / (v_hat.array().sqrt() + eps).matrix();
+        weights -= (lr * m_hat.array() / (v_hat.array().sqrt() + eps)).matrix();
     }
 };
 
@@ -73,7 +73,7 @@ public:
     void update(MatrixXd& weights, const MatrixXd& grad) override {
         if (cache.size() == 0) cache = MatrixXd::Zero(weights.rows(), weights.cols());
         cache += grad.array().square().matrix();
-        weights -= lr * grad.array() / (cache.array().sqrt() + eps).matrix();
+        weights -= (lr * grad.array() / (cache.array().sqrt() + eps)).matrix();
     }
 };
 
@@ -88,7 +88,7 @@ public:
             edx = MatrixXd::Zero(weights.rows(), weights.cols());
         }
         eg = rho * eg + (1 - rho) * grad.array().square().matrix();
-        MatrixXd dx = -grad.array() * ((edx.array() + eps).sqrt() / (eg.array() + eps).sqrt()).matrix();
+        MatrixXd dx = (-grad.array() * ((edx.array() + eps).sqrt() / (eg.array() + eps).sqrt())).matrix();
         edx = rho * edx + (1 - rho) * dx.array().square().matrix();
         weights += dx;
     }
