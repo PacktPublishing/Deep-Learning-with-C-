@@ -1,8 +1,32 @@
+// iterative_pruning.cpp
+//
+// Iterative magnitude pruning with finetuning recovery.
+//
+// Unlike one-shot pruning (magnitude_pruning.cpp), this implements the
+// prune → finetune → repeat cycle that allows the surviving weights to
+// adapt after each pruning step, recovering lost accuracy before the
+// next round of pruning at a higher sparsity target.
+//
+// Pipeline per sparsity level:
+//   1. Prune: compute global magnitude threshold, create binary masks,
+//      zero weights below threshold
+//   2. Finetune: train with a lower learning rate while re-applying
+//      masks after every optimizer step (prevents pruned weights from
+//      recovering through gradient updates)
+//   3. Evaluate: measure accuracy and sparsity, report recovery
+//
+// Dependencies: LibTorch (PyTorch C++ API)
+// Compile:
+//   g++ -std=c++17 iterative_pruning.cpp -o iterative_pruning \
+//     -I$LIBTORCH_PATH/include -I$LIBTORCH_PATH/include/torch/csrc/api/include \
+//     -L$LIBTORCH_PATH/lib -ltorch -ltorch_cpu -lc10 -Wl,-rpath,$LIBTORCH_PATH/lib
+
 #include <torch/torch.h>
 #include <iostream>
 #include <vector>
 #include <algorithm>
 
+// 3-layer feedforward network: input -> hidden -> hidden -> output
 struct SimpleNet : torch::nn::Module {
     torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
 
@@ -19,16 +43,24 @@ struct SimpleNet : torch::nn::Module {
     }
 };
 
+// Global magnitude pruning with persistent binary masks.
+//
+// Key difference from magnitude_pruning.cpp's MagnitudePruner:
+//   - Stores masks so they can be re-applied after each optimizer step
+//   - This prevents the optimizer from "reviving" pruned weights via
+//     gradient updates during finetuning
 class MagnitudePruner {
 private:
     torch::nn::Module& model;
     float sparsity_target;
-    std::vector<torch::Tensor> masks; // binary masks to freeze pruned weights
+    std::vector<torch::Tensor> masks; // 1 = keep, 0 = pruned
 
 public:
     MagnitudePruner(torch::nn::Module& model_, float sparsity_)
         : model(model_), sparsity_target(sparsity_) {}
 
+    // Find the magnitude value at the sparsity_target percentile
+    // using O(n) partial sort (nth_element)
     float compute_threshold() {
         std::vector<float> all_weights;
         for (const auto& param : model.parameters()) {
@@ -42,7 +74,8 @@ public:
         return all_weights[idx];
     }
 
-    // Compute and store masks, then apply them
+    // Compute binary masks from current weights and apply them.
+    // mask[i] = 1 if |weight[i]| >= threshold, 0 otherwise.
     void apply_pruning() {
         float threshold = compute_threshold();
         masks.clear();
@@ -53,7 +86,9 @@ public:
         }
     }
 
-    // Re-apply stored masks (used after optimizer step to keep pruned weights at zero)
+    // Re-apply stored masks after an optimizer step.
+    // The optimizer may assign nonzero gradients to pruned positions;
+    // this zeros them again to maintain the sparsity pattern.
     void reapply_masks() {
         size_t i = 0;
         for (auto& param : model.parameters()) {
@@ -62,6 +97,7 @@ public:
         }
     }
 
+    // Fraction of parameters that are exactly zero
     float measure_sparsity() {
         int64_t total = 0, zeros = 0;
         for (const auto& param : model.parameters()) {
@@ -72,13 +108,18 @@ public:
     }
 };
 
+// Classification accuracy (%) on given data/labels
 float evaluate(SimpleNet& model, torch::Tensor data, torch::Tensor labels) {
     torch::NoGradGuard no_grad;
     auto preds = model.forward(data).argmax(1);
     return preds.eq(labels).sum().item<float>() / labels.size(0) * 100;
 }
 
-// Iterative pruning: prune → finetune (with mask) → evaluate, repeat at higher sparsity
+// Core pipeline: iterate through increasing sparsity targets.
+// Each round prunes from the current (already-pruned) model, so weights
+// pruned in earlier rounds stay pruned — sparsity only increases.
+// Finetuning uses a lower learning rate (1e-4) than initial training (1e-3)
+// to gently adjust surviving weights without large destabilizing updates.
 void iterative_pruning_pipeline(
     SimpleNet& model,
     torch::Tensor data,
@@ -89,7 +130,7 @@ void iterative_pruning_pipeline(
     for (float target_sparsity : sparsity_schedule) {
         std::cout << "\n--- Pruning to " << target_sparsity * 100 << "% sparsity ---" << std::endl;
 
-        // Step 1: Prune
+        // Step 1: Prune — compute new threshold on current weights and mask
         MagnitudePruner pruner(model, target_sparsity);
         pruner.apply_pruning();
         float achieved = pruner.measure_sparsity();
@@ -98,7 +139,7 @@ void iterative_pruning_pipeline(
         float acc_before = evaluate(model, data, labels);
         std::cout << "Accuracy after pruning (before finetune): " << acc_before << "%" << std::endl;
 
-        // Step 2: Finetune with mask re-application
+        // Step 2: Finetune — lower LR to recover accuracy while preserving masks
         auto optimizer = torch::optim::Adam(model.parameters(),
             torch::optim::AdamOptions(1e-4));
 
@@ -108,7 +149,8 @@ void iterative_pruning_pipeline(
             loss.backward();
             optimizer.step();
 
-            // Re-apply mask so pruned weights stay zero
+            // Critical: re-apply mask after optimizer.step() so pruned
+            // weights don't drift back to nonzero via gradient updates
             pruner.reapply_masks();
 
             if (epoch % 5 == 0 || epoch == finetune_epochs - 1)
@@ -116,7 +158,7 @@ void iterative_pruning_pipeline(
                           << ", Loss: " << loss.item<float>() << std::endl;
         }
 
-        // Step 3: Evaluate after finetuning
+        // Step 3: Evaluate — report accuracy recovery from finetuning
         float acc_after = evaluate(model, data, labels);
         float final_sparsity = pruner.measure_sparsity();
         std::cout << "Accuracy after finetune: " << acc_after << "%"
@@ -134,7 +176,7 @@ int main() {
 
     auto model = std::make_shared<SimpleNet>(input_dim, hidden_dim, num_classes);
 
-    // Initial training
+    // Initial training at higher LR to learn good representations
     torch::optim::Adam optimizer(model->parameters(), 0.001);
     std::cout << "Training model..." << std::endl;
     for (int epoch = 0; epoch < 50; ++epoch) {
@@ -152,7 +194,8 @@ int main() {
     std::cout << "\nBaseline - Accuracy: " << baseline
               << "% | Parameters: " << total_params << std::endl;
 
-    // Run iterative prune-finetune pipeline with increasing sparsity
+    // Sparsity schedule: progressively prune 30% → 50% → 70% → 90%
+    // Each step builds on the previous — the model is not reset between rounds
     std::vector<float> schedule = {0.3f, 0.5f, 0.7f, 0.9f};
     iterative_pruning_pipeline(*model, data, labels, schedule, /*finetune_epochs=*/20);
 
