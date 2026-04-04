@@ -46,6 +46,12 @@ target_link_libraries(gradient_pruning "${TORCH_LIBRARIES}")
 add_executable(wanda_pruning wanda_pruning.cpp)
 target_link_libraries(wanda_pruning "${TORCH_LIBRARIES}")
 
+add_executable(transformer_pruning transformer_pruning.cpp)
+target_link_libraries(transformer_pruning "${TORCH_LIBRARIES}")
+
+add_executable(transformer_pruning_pipeline transformer_pruning_pipeline.cpp)
+target_link_libraries(transformer_pruning_pipeline "${TORCH_LIBRARIES}")
+
 add_executable(quantization quantization.cpp)
 target_link_libraries(quantization "${TORCH_LIBRARIES}")
 
