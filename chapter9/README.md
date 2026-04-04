@@ -39,7 +39,9 @@ make transformer          # Core transformer
 make ddp_training         # DDP training
 make fsdp_training        # FSDP training
 make knowledge_distillation
-make pruning
+make magnitude_pruning
+make gradient_pruning
+make wanda_pruning
 make quantization
 ```
 
@@ -68,6 +70,6 @@ make quantization
 
 **Core:** encoder, decoder, transformer, attention, positional encoding  
 **Distributed:** ddp_training, fsdp_training, ddp_transformer, fsdp_transformer  
-**Compression:** knowledge_distillation, pruning, quantization, low_rank_approximation  
+**Compression:** knowledge_distillation, magnitude_pruning, gradient_pruning, wanda_pruning, quantization, low_rank_approximation  
 **Utils:** training_utils, data_loader  
 **Examples:** bert_train, train_encoder, train_decoder, train_encoder_decoder
